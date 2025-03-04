@@ -1,8 +1,11 @@
 package queries
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 )
 
@@ -38,6 +41,28 @@ type CreateConcertQueryArgs struct {
 	VenueID  int
 	Date     int
 	Limit    int
+}
+
+func (cq *ConcertQueryImpl) GetConcert(ctx context.Context, ID ConcertID) (Concert, error) {
+	row := cq.DB.QueryRow(ctx, `
+		SELECT
+			name,
+			artist_id,
+			venue_id,
+			date,
+			"limit"
+		FROM concert
+		WHERE id = $1;
+	`, ID)
+	var t Concert
+	err := row.Scan(
+		&t.Name,
+		&t.ArtistID,
+		&t.VenueID,
+		&t.Date,
+		&t.Limit,
+	)
+	return t, err
 }
 
 func (cq *ConcertQueryImpl) CreateConcert(ctx context.Context, args CreateConcertQueryArgs) (Concert, error) {
@@ -90,17 +115,46 @@ type UpdateConcertArgs struct {
 }
 
 func (cq *ConcertQueryImpl) UpdateConcert(ctx context.Context, args UpdateConcertArgs) (Concert, error) {
-	row := cq.DB.QueryRow(ctx, `
-		UPDATE concert
-		SET name = $1,
-			artist_id = $2,
-			venue_id = $3,
-			date = $4,
-			"limit" = $5,
-			updated_at = $6
-		WHERE id = $7
-		RETURNING id, name;
-	`, args.Name, args.ArtistID, args.VenueID, args.Date, args.Limit, time.Now().Unix(), args.ID)
+	baseSql := &bytes.Buffer{}
+	var setClauses []string
+	var arguments []interface{}
+	paramIndex := 1
+	baseSql.WriteString("UPDATE concert ")
+	// Empty field has its own default value.
+	if args.Name != "" {
+		setClauses = append(setClauses, fmt.Sprintf("name = $%v", paramIndex))
+		arguments = append(arguments, args.Name)
+		paramIndex++
+	}
+	if args.ArtistID > 0 {
+		setClauses = append(setClauses, fmt.Sprintf("artist_id = $%v", paramIndex))
+		arguments = append(arguments, args.ArtistID)
+		paramIndex++
+	}
+	if args.VenueID > 0 {
+		setClauses = append(setClauses, fmt.Sprintf("artist_id = $%v", paramIndex))
+		arguments = append(arguments, args.VenueID)
+		paramIndex++
+	}
+	// Date time is using epoch.
+	if args.Date > 0 {
+		setClauses = append(setClauses, fmt.Sprintf("date = $%v", paramIndex))
+		arguments = append(arguments, args.Date)
+		paramIndex++
+	}
+	if args.Limit >= 0 {
+		setClauses = append(setClauses, fmt.Sprintf(`"limit" = $%v`, paramIndex))
+		arguments = append(arguments, args.Limit)
+		paramIndex++
+	}
+	setClauses = append(setClauses, fmt.Sprintf("updated_at = $%v", paramIndex))
+	arguments = append(arguments, time.Now().Unix())
+	paramIndex++
+	baseSql.WriteString(fmt.Sprintf("SET %s ", strings.Join(setClauses, ", ")))
+	baseSql.WriteString(fmt.Sprintf("WHERE id = $%v RETURNING id, name;", paramIndex))
+	arguments = append(arguments, args.ID)
+	fmt.Println(baseSql.String(), arguments)
+	row := cq.DB.QueryRow(ctx, baseSql.String(), arguments...)
 	var c Concert
 	err := row.Scan(
 		&c.ID,

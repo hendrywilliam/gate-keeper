@@ -25,6 +25,7 @@ type Queries struct {
 		CreateConcert(ctx context.Context, args CreateConcertQueryArgs) (Concert, error)
 		DeleteConcert(ctx context.Context, id ConcertID) (Concert, error)
 		UpdateConcert(ctx context.Context, args UpdateConcertArgs) (Concert, error)
+		GetConcert(ctx context.Context, ID ConcertID) (Concert, error)
 	}
 	TicketCategory interface {
 		UpdateTicketCategory(ctx context.Context, args UpdateTicketCategoryArgs) (TicketCategory, error)

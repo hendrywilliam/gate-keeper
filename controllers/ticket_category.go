@@ -52,7 +52,7 @@ func (tc *TicketCategoryController) CreateTicketCategory(c fiber.Ctx) error {
 	tc.Log.Info("ticket category created", "ticket_category", tcat)
 	return c.Status(http.StatusOK).JSON(fiber.Map{
 		"code":    http.StatusOK,
-		"message": "concert updated.",
+		"message": "ticket category created.",
 		"data":    tcat,
 	})
 }
